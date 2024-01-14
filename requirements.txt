@@ -1,0 +1,10 @@
+torch
+numpy
+six
+regex
+transformers
+torchmetrics
+tqdm
+gensim
+pyg
+whoosh
