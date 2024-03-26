@@ -99,6 +99,25 @@ class LiteratureEmbedding(torch.nn.Module):
         F.normalize(seg.view(-1, self.emb_size, self.seq_length))).sum(-1)
         
         return f
+
+
+class NormalLiteratureEmbedding(torch.nn.Module):
+    def __init__(self, args):
+        super(NormalLiteratureEmbedding, self).__init__()
+
+        self.seq_length = args.seq_length
+        self.emb_size = args.emb_size
+
+        self.src_embedding = torch.nn.Embedding(num_embeddings=args.vocab_size, embedding_dim=args.emb_size)
+
+        self.w = torch.nn.Parameter(torch.ones(args.seq_length), requires_grad=True)
+
+    def forward(self, src):
+        src = self.src_embedding(src)
+
+        f = (F.normalize(self.w * src.view(-1, self.emb_size, self.seq_length))).sum(-1)
+
+        return f
     
 class HCitenGL(torch.nn.Module):
     def __init__(self, args):
@@ -153,9 +172,9 @@ class HCitenGL(torch.nn.Module):
         return logits
         
     
-class CitenGL(torch.nn.Module):
+class RGCNCitenGL(torch.nn.Module):
     def __init__(self, args):
-        super(CitenGL, self).__init__()
+        super(RGCNCitenGL, self).__init__()
         
         self.literature_encoder = LiteratureEmbedding(args)
         
@@ -339,4 +358,34 @@ class DFU(torch.nn.Module):
         
         query = self.query_mlp(query)
         logits = self.motivation_mlp(emb * query + emb + query)
+        return logits
+
+
+class NormalDFU(torch.nn.Module):
+    def __init__(self, args):
+        super(NormalDFU, self).__init__()
+
+        self.literature_encoder = LiteratureEmbedding(args)
+
+        self.motivation_mlp = torch.nn.Linear(args.emb_size, args.class_num + 1)
+        self.ranking_mlp = torch.nn.Linear(args.emb_size, 1)
+
+        self.linear = torch.nn.Linear(args.emb_size, args.emb_size)
+        self.dropout = torch.nn.Dropout(0.5)
+
+    def forward(self, src, seg, edge_index):
+        f = self.literature_encoder(src, seg)
+
+        return self.dropout(self.linear(f))
+
+    def rank(self, emb, src, seg):
+        query = self.literature_encoder(src, seg)
+
+        logits = self.ranking_mlp(emb + query)
+        return logits
+
+    def motivation(self, emb, src, seg):
+        query = self.literature_encoder(src, seg)
+
+        logits = self.motivation_mlp(emb + query)
         return logits
